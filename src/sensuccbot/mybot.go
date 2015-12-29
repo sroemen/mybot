@@ -26,13 +26,43 @@ THE SOFTWARE.
 package main
 
 import (
-	"encoding/csv"
+	"crypto/tls"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"strings"
+	"time"
 )
+
+var (
+	// http vars
+	client    *http.Client
+	transport *http.Transport
+)
+
+// This does what the name implies, creates a Dialer that will timeout after
+// it's configured time period.
+// used by http.transport()
+func timedDialer(tout time.Duration) func(net, addr string) (c net.Conn, err error) {
+	return func(netw, addr string) (net.Conn, error) {
+		c, err := net.DialTimeout(netw, addr, tout)
+		if err != nil {
+			return nil, err
+		}
+		return c, nil
+	}
+}
+
+func init() {
+	// and adds a timeout, ignore self signed certs
+	transport = &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		Dial:            timedDialer(6 * time.Second),
+	}
+	client = &http.Client{Transport: transport}
+}
 
 func main() {
 	if len(os.Args) != 2 {
@@ -55,37 +85,34 @@ func main() {
 		if m.Type == "message" && strings.HasPrefix(m.Text, "<@"+id+">") {
 			// if so try to parse if
 			parts := strings.Fields(m.Text)
-			if len(parts) == 3 && parts[1] == "stock" {
+
+			log.Printf("channel: %s message::  %v", m.Channel, parts)
+
+			if len(parts) >= 2 && isValidCommand(parts[1]) {
 				// looks good, get the quote and reply with the result
+				args := make([]string, 0)
+				v := 0
+
 				go func(m Message) {
-					m.Text = getQuote(parts[2])
+					if len(parts) > 1 {
+						for x, _ := range parts {
+							if x <= 1 {
+								continue
+							}
+							args = append(args, parts[x])
+							v++
+						}
+					}
+					m.Text = runCommand(parts[1], args)
 					postMessage(ws, m)
 				}(m)
 				// NOTE: the Message object is copied, this is intentional
 			} else {
-				// huh?
-				m.Text = fmt.Sprintf("sorry, that does not compute\n")
+				// unknown command, send help command back
+				m.Text = runCommand("help", []string{})
 				postMessage(ws, m)
 			}
+
 		}
 	}
-}
-
-// Get the quote via Yahoo. You should replace this method to something
-// relevant to your team!
-func getQuote(sym string) string {
-	sym = strings.ToUpper(sym)
-	url := fmt.Sprintf("http://download.finance.yahoo.com/d/quotes.csv?s=%s&f=nsl1op&e=.csv", sym)
-	resp, err := http.Get(url)
-	if err != nil {
-		return fmt.Sprintf("error: %v", err)
-	}
-	rows, err := csv.NewReader(resp.Body).ReadAll()
-	if err != nil {
-		return fmt.Sprintf("error: %v", err)
-	}
-	if len(rows) >= 1 && len(rows[0]) == 5 {
-		return fmt.Sprintf("%s (%s) is trading at $%s", rows[0][0], rows[0][1], rows[0][2])
-	}
-	return fmt.Sprintf("unknown response format (symbol was \"%s\")", sym)
 }

@@ -1,8 +1,10 @@
 
-# mybot
+# Sensu Control Center Bot
 
-`mybot` is an working Slack bot written in Go. Fork it and use it to build
-your very own cool Slack bot!
+`sensuccbot` is a clone of `mybot` 
+
+This has been modified to perform actions against my sensu control center app (a multi-sensu server aware dashboard)
+
 
 Check the [blog post](https://www.opsdash.com/blog/slack-bot-in-golang.html)
 for a description of mybot internals.
