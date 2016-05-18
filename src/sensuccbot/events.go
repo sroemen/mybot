@@ -55,3 +55,8 @@ type thresholdTypes struct {
 	Warning  int `json:"warning"`
 	Critical int `json:"critical"`
 }
+
+type events1 struct {
+	events
+	Server string
+}

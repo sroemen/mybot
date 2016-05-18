@@ -89,7 +89,7 @@ func main() {
 			log.Printf("channel: %s message::  %v", m.Channel, parts)
 
 			if len(parts) >= 2 && isValidCommand(parts[1]) {
-				// looks good, get the quote and reply with the result
+				// looks good, continue
 				args := make([]string, 0)
 				v := 0
 
@@ -112,7 +112,37 @@ func main() {
 				m.Text = runCommand("help", []string{})
 				postMessage(ws, m)
 			}
+		} else if m.Type == "message" && isValidHashCommand(strings.Split(m.Text, " ")) {
+			// if so try to parse if
+			parts := strings.Fields(m.Text)
+			command := parts[0]
+	
+			log.Printf("channel: %s message::  %v", m.Channel, parts)
 
+			if len(parts) >= 1 {
+				// looks good, continue
+				args := make([]string, 0)
+				v := 0
+
+				go func(m Message) {
+					if len(parts) > 1 {
+						for x, _ := range parts {
+							if x < 1 {
+								continue
+							}
+							args = append(args, parts[x])
+							v++
+						}
+					}
+					m.Text = runCommand(command[1:], args)
+					postMessage(ws, m)
+				}(m)
+				// NOTE: the Message object is copied, this is intentional
+			} else {
+				// unknown command, send help command back
+				m.Text = runCommand("help", []string{})
+				postMessage(ws, m)
+			}
 		}
 	}
 }
